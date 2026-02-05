@@ -2,7 +2,6 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { Server } from 'socket.io';
-import { createServer } from 'http';
 import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
 import { redis } from './lib/redis.js';
@@ -25,11 +24,8 @@ const fastify = Fastify({
   },
 });
 
-// Create HTTP server for Socket.IO
-const httpServer = createServer(fastify.server);
-
-// Setup Socket.IO
-const io = new Server(httpServer, {
+// Setup Socket.IO on Fastify's server
+const io = new Server(fastify.server, {
   cors: {
     origin: env.FRONTEND_URL,
     methods: ['GET', 'POST'],
@@ -99,10 +95,9 @@ const start = async () => {
     // Start Fastify (but use httpServer for listening)
     await fastify.ready();
 
-    httpServer.listen(env.PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://localhost:${env.PORT}`);
-      console.log(`Socket.IO ready`);
-    });
+    await fastify.listen({ port: env.PORT, host: '0.0.0.0' });
+    console.log(`Server running on http://localhost:${env.PORT}`);
+    console.log(`Socket.IO ready`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
