@@ -1,0 +1,119 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import jwt from '@fastify/jwt';
+import { Server } from 'socket.io';
+import { createServer } from 'http';
+import { env } from './config/env.js';
+import { prisma } from './lib/prisma.js';
+import { redis } from './lib/redis.js';
+import { setupSocketIO } from './socket/index.js';
+
+// Import routes
+import { authRoutes } from './routes/auth.js';
+import { userRoutes } from './routes/users.js';
+import { sessionRoutes } from './routes/sessions.js';
+import { menuRoutes } from './routes/menus.js';
+import { restaurantRoutes } from './routes/restaurants.js';
+import { analyticsRoutes } from './routes/analytics.js';
+
+const fastify = Fastify({
+  logger: {
+    level: env.NODE_ENV === 'development' ? 'info' : 'warn',
+    transport: env.NODE_ENV === 'development'
+      ? { target: 'pino-pretty', options: { colorize: true } }
+      : undefined,
+  },
+});
+
+// Create HTTP server for Socket.IO
+const httpServer = createServer(fastify.server);
+
+// Setup Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: env.FRONTEND_URL,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+// Make io accessible in routes
+fastify.decorate('io', io);
+
+// Register plugins
+await fastify.register(cors, {
+  origin: env.FRONTEND_URL,
+  credentials: true,
+});
+
+await fastify.register(jwt, {
+  secret: env.JWT_SECRET,
+  sign: {
+    expiresIn: '7d',
+  },
+});
+
+// Health check
+fastify.get('/health', async () => {
+  return {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    env: env.NODE_ENV,
+  };
+});
+
+// Register API routes
+await fastify.register(authRoutes, { prefix: '/api/v1/auth' });
+await fastify.register(userRoutes, { prefix: '/api/v1/users' });
+await fastify.register(sessionRoutes, { prefix: '/api/v1/sessions' });
+await fastify.register(menuRoutes, { prefix: '/api/v1/menus' });
+await fastify.register(restaurantRoutes, { prefix: '/api/v1/restaurants' });
+await fastify.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
+
+// Setup Socket.IO handlers
+setupSocketIO(io);
+
+// Graceful shutdown
+const shutdown = async () => {
+  console.log('Shutting down...');
+  await fastify.close();
+  await prisma.$disconnect();
+  await redis.quit();
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+// Start server
+const start = async () => {
+  try {
+    // Test database connection
+    await prisma.$connect();
+    console.log('Database connected');
+
+    // Test Redis connection
+    await redis.ping();
+    console.log('Redis connected');
+
+    // Start Fastify (but use httpServer for listening)
+    await fastify.ready();
+
+    httpServer.listen(env.PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${env.PORT}`);
+      console.log(`Socket.IO ready`);
+    });
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();
+
+// Type declarations
+declare module 'fastify' {
+  interface FastifyInstance {
+    io: Server;
+  }
+}

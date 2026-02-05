@@ -1,0 +1,420 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER DOMAIN
+// ============================================
+
+model User {
+  id             String   @id @default(cuid())
+  lineUserId     String   @unique @map("line_user_id")
+  displayName    String   @map("display_name")
+  pictureUrl     String?  @map("picture_url")
+
+  // Preferences
+  preferences    Json?    @default("{}")  // { cuisines: [], priceRange: [1,4], maxDistance: 5000 }
+
+  // Onboarding
+  onboardingStep Int      @default(0) @map("onboarding_step")  // 0=not started, 3=complete
+  onboardingDone Boolean  @default(false) @map("onboarding_done")
+
+  // Timestamps
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  lastActiveAt   DateTime @default(now()) @map("last_active_at")
+
+  // Relations
+  ownedSessions   Session[]         @relation("SessionOwner")
+  memberships     SessionMember[]
+  swipes          Swipe[]
+  analyticsEvents AnalyticsEvent[]
+
+  @@map("users")
+}
+
+// ============================================
+// SESSION DOMAIN
+// ============================================
+
+model Session {
+  id         String        @id @default(cuid())
+  code       String        @unique  // 6-char invite code
+
+  // Session config
+  mode       SessionMode   @default(GROUP)
+  status     SessionStatus @default(WAITING)
+  maxMembers Int           @default(5) @map("max_members")
+
+  // Phase tracking
+  phase      SessionPhase  @default(MENU_SWIPE)
+
+  // Filters applied to this session
+  filters    Json          @default("{}")  // { cuisines, priceRange, maxDistance, location }
+
+  // Owner
+  ownerId    String        @map("owner_id")
+  owner      User          @relation("SessionOwner", fields: [ownerId], references: [id])
+
+  // Timing
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  expiresAt   DateTime  @map("expires_at")  // 24h from creation
+
+  // Relations
+  members         SessionMember[]
+  swipes          Swipe[]
+  matches         Match[]
+  decisions       Decision[]
+  analyticsEvents AnalyticsEvent[]
+
+  @@index([code])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model SessionMember {
+  id        String @id @default(cuid())
+
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  userId    String  @map("user_id")
+  user      User    @relation(fields: [userId], references: [id])
+
+  // Member status
+  status       MemberStatus @default(ACTIVE)
+  joinedAt     DateTime     @default(now()) @map("joined_at")
+  lastActiveAt DateTime     @default(now()) @map("last_active_at")
+
+  // Progress tracking
+  menuSwipeIndex Int     @default(0) @map("menu_swipe_index")
+  restSwipeIndex Int     @default(0) @map("rest_swipe_index")
+  superLikeUsed  Boolean @default(false) @map("super_like_used")
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId])
+  @@map("session_members")
+}
+
+enum SessionMode {
+  SOLO
+  GROUP
+}
+
+enum SessionStatus {
+  WAITING       // Waiting for members
+  ACTIVE        // Swiping in progress
+  DECIDING      // Computing decision
+  COMPLETED     // Decision made
+  EXPIRED       // Timed out
+  CANCELLED     // Manually cancelled
+}
+
+enum SessionPhase {
+  MENU_SWIPE        // Swiping menus
+  MENU_RESULT       // Menu decided, showing result
+  RESTAURANT_SWIPE  // Swiping restaurants for matched menu
+  FINAL_RESULT      // Final decision
+}
+
+enum MemberStatus {
+  ACTIVE
+  IDLE        // >5 min inactive
+  REMOVED     // >10 min inactive, kicked
+  LEFT        // Voluntarily left
+}
+
+// ============================================
+// CONTENT DOMAIN
+// ============================================
+
+model Menu {
+  id             String  @id @default(cuid())
+  name           String
+  nameLocal      String? @map("name_local")  // Thai/local name
+  description    String?
+  imageUrl       String  @map("image_url")
+
+  // Categorization
+  cuisineType    String   @map("cuisine_type")  // thai, japanese, italian, etc.
+  tags           String[] @default([])          // spicy, vegetarian, halal, etc.
+
+  // Pricing
+  priceRangeLow  Int @map("price_range_low")   // in THB
+  priceRangeHigh Int @map("price_range_high")
+
+  // Metadata
+  popularity Float   @default(0)  // 0-1 score for sorting
+  isActive   Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  restaurants RestaurantMenu[]
+  swipes      Swipe[]
+  matches     Match[]
+  decisions   Decision[]
+
+  @@index([cuisineType])
+  @@index([isActive])
+  @@map("menus")
+}
+
+model Restaurant {
+  id          String  @id @default(cuid())
+  name        String
+  nameLocal   String? @map("name_local")
+  description String?
+  imageUrl    String  @map("image_url")
+
+  // Location
+  latitude  Float
+  longitude Float
+  address   String
+
+  // Details
+  priceLevel  Int    @map("price_level")  // 1-4
+  rating      Float?                       // 0-5
+  reviewCount Int    @default(0) @map("review_count")
+
+  // Operating hours (JSON for flexibility)
+  openingHours Json @map("opening_hours")  // { mon: [{open: "09:00", close: "22:00"}], ... }
+
+  // Contact
+  phone         String?
+  lineOfficialId String? @map("line_official_id")
+  website       String?
+  googleMapsUrl String? @map("google_maps_url")
+
+  // Metadata
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  menus     RestaurantMenu[]
+  swipes    Swipe[]
+  decisions Decision[]
+
+  @@index([latitude, longitude])
+  @@index([isActive])
+  @@map("restaurants")
+}
+
+model RestaurantMenu {
+  id String @id @default(cuid())
+
+  restaurantId String     @map("restaurant_id")
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  menuId String @map("menu_id")
+  menu   Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  // Restaurant-specific pricing for this menu
+  price       Int?    // Override price at this restaurant
+  isAvailable Boolean @default(true) @map("is_available")
+
+  @@unique([restaurantId, menuId])
+  @@map("restaurant_menus")
+}
+
+// ============================================
+// SWIPE DOMAIN
+// ============================================
+
+model Swipe {
+  id String @id @default(cuid())
+
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  // What was swiped
+  menuId String? @map("menu_id")
+  menu   Menu?   @relation(fields: [menuId], references: [id])
+
+  restaurantId String?     @map("restaurant_id")
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+
+  // Swipe details
+  direction SwipeDirection
+  phase     SessionPhase   // Which phase this swipe belongs to
+
+  // Timing
+  createdAt       DateTime @default(now()) @map("created_at")
+  swipeDurationMs Int?     @map("swipe_duration_ms")  // Time spent looking at card
+
+  @@index([sessionId, phase])
+  @@index([userId])
+  @@index([menuId])
+  @@index([restaurantId])
+  @@map("swipes")
+}
+
+enum SwipeDirection {
+  LEFT          // No / Dislike
+  RIGHT         // Yes / Like
+  UP            // Super Like
+}
+
+// ============================================
+// MATCH & DECISION DOMAIN
+// ============================================
+
+model Match {
+  id String @id @default(cuid())
+
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // What matched
+  menuId String? @map("menu_id")
+  menu   Menu?   @relation(fields: [menuId], references: [id])
+
+  // Match quality
+  matchType   MatchType @map("match_type")
+  confidence  Float     // 0-1
+  voteCount   Int       @map("vote_count")
+  totalVoters Int       @map("total_voters")
+
+  // If super liked
+  hasSuperLike Boolean @default(false) @map("has_super_like")
+
+  phase     SessionPhase
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@index([sessionId, phase])
+  @@map("matches")
+}
+
+model Decision {
+  id String @id @default(cuid())
+
+  sessionId String  @map("session_id")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Final choices
+  menuId String? @map("menu_id")
+  menu   Menu?   @relation(fields: [menuId], references: [id])
+
+  restaurantId String?     @map("restaurant_id")
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+
+  // Decision metadata
+  decisionType DecisionType @map("decision_type")
+  confidence   Float        // 0-1
+
+  // How decision was reached
+  method DecisionMethod
+
+  // Voting breakdown (JSON)
+  voteBreakdown Json @map("vote_breakdown")  // { menuId: { odiserId: direction, ... }, ... }
+
+  // Timing
+  createdAt        DateTime @default(now()) @map("created_at")
+  timeToDecisionMs Int      @map("time_to_decision_ms")
+
+  @@index([sessionId])
+  @@map("decisions")
+}
+
+enum MatchType {
+  STRONG      // Majority (>50%)
+  WEAK        // Plurality but not majority
+  TIE         // Equal votes
+  SUPER       // Has super like(s)
+}
+
+enum DecisionType {
+  MENU
+  RESTAURANT
+}
+
+enum DecisionMethod {
+  UNANIMOUS       // Everyone agreed
+  MAJORITY        // >50% agreed
+  SUPER_LIKE      // Super like decided
+  TIEBREAKER      // Random from tied options
+  TIMEOUT         // Auto-selected due to timeout
+}
+
+// ============================================
+// ANALYTICS DOMAIN
+// ============================================
+
+model AnalyticsEvent {
+  id String @id @default(cuid())
+
+  // Event identification
+  eventType    String @map("event_type")
+  eventVersion Int    @default(1) @map("event_version")
+
+  // Context
+  sessionId String?  @map("session_id")
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Event data (flexible JSON)
+  payload Json @default("{}")
+
+  // Metadata
+  timestamp       DateTime  @default(now())
+  clientTimestamp DateTime? @map("client_timestamp")
+
+  // Device/client info
+  deviceInfo Json? @map("device_info")  // { platform, version, screenSize, etc. }
+
+  @@index([eventType])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([timestamp])
+  @@map("analytics_events")
+}
+
+// ============================================
+// ADMIN DOMAIN
+// ============================================
+
+model Admin {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  email        String?   @unique
+  displayName  String    @map("display_name")
+
+  // Role-based access
+  role         AdminRole @default(ADMIN)
+
+  // Account status
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  // Timestamps
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+enum AdminRole {
+  SUPER_ADMIN   // Full access, can manage other admins
+  ADMIN         // Can manage menus, restaurants, view analytics
+  MODERATOR     // Can view but limited edit access
+}
