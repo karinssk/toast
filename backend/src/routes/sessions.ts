@@ -320,7 +320,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
           data: {
             sessionId: session.id,
             alreadyMember: true,
-            session: formatSessionResponse(session, user.id),
+            session: formatSessionResponse(session),
           },
         });
       }
@@ -389,7 +389,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         data: {
           sessionId: session.id,
           alreadyMember: false,
-          session: formatSessionResponse(updatedSession!, user.id),
+          session: formatSessionResponse(updatedSession!),
         },
       });
     } catch (error) {
@@ -653,7 +653,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
 }
 
 // Helper function to format session response
-function formatSessionResponse(session: any, currentUserId: string) {
+function formatSessionResponse(session: any) {
   return {
     id: session.id,
     code: session.code,

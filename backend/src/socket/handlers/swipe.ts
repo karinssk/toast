@@ -2,7 +2,7 @@ import { Server } from 'socket.io';
 import { prisma } from '../../lib/prisma.js';
 import { redis, RedisKeys } from '../../lib/redis.js';
 import { decisionEngine } from '../../engine/decision-engine.js';
-import { SwipeDirection, SessionPhase, SessionStatus, MemberStatus } from '@prisma/client';
+import { SwipeDirection, SessionPhase, SessionStatus, MemberStatus, MatchType } from '@prisma/client';
 
 interface SwipeData {
   sessionId: string;
@@ -159,7 +159,7 @@ export async function checkForMatch(
   // Calculate match
   const matchResult = decisionEngine.calculateMatch(swipeData, memberCount, itemIds);
 
-  if (matchResult.type === 'none') {
+  if (!matchResult.winnerId && (!matchResult.tiedItems || matchResult.tiedItems.length === 0)) {
     // No match found
     io.to(`session:${sessionId}`).emit('match:none', {
       sessionId,
@@ -169,7 +169,7 @@ export async function checkForMatch(
     return false;
   }
 
-  if (matchResult.type === 'tie' && matchResult.tiedItems) {
+  if (matchResult.type === MatchType.TIE && matchResult.tiedItems?.length) {
     // Resolve tie
     const winnerId = decisionEngine.resolveTie(matchResult.tiedItems, sessionId);
     matchResult.winnerId = winnerId;
@@ -290,8 +290,8 @@ export async function checkForMatch(
         restaurantId: matchResult.winnerId,
         decisionType: 'RESTAURANT',
         confidence: matchResult.confidence,
-        method: matchResult.type === 'strong' ? 'MAJORITY' :
-                matchResult.type === 'super' ? 'SUPER_LIKE' :
+        method: matchResult.type === MatchType.STRONG ? 'MAJORITY' :
+                matchResult.type === MatchType.SUPER ? 'SUPER_LIKE' :
                 'TIEBREAKER',
         voteBreakdown: matchResult.votes,
         timeToDecisionMs,
@@ -328,7 +328,9 @@ export async function checkForMatch(
         googleMapsUrl: restaurant.googleMapsUrl,
       } : null,
       decision: {
-        method: matchResult.type,
+        method: matchResult.type === MatchType.STRONG ? 'MAJORITY'
+          : matchResult.type === MatchType.SUPER ? 'SUPER_LIKE'
+          : 'TIEBREAKER',
         confidence: matchResult.confidence,
         timeToDecisionMs,
       },

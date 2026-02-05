@@ -8,12 +8,6 @@ export interface AuthUser {
   pictureUrl: string | null;
 }
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: AuthUser;
-  }
-}
-
 export async function authMiddleware(
   request: FastifyRequest,
   reply: FastifyReply
@@ -30,8 +24,6 @@ export async function authMiddleware(
         },
       });
     }
-
-    const token = authHeader.substring(7);
 
     // Verify JWT
     const decoded = await request.jwtVerify<{ userId: string }>();
@@ -78,7 +70,7 @@ export async function authMiddleware(
 // Optional auth - doesn't fail if no token
 export async function optionalAuthMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply
+  _reply: FastifyReply
 ) {
   try {
     const authHeader = request.headers.authorization;

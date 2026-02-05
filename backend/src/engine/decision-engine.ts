@@ -40,7 +40,7 @@ class DecisionEngine {
     const voteMap = this.aggregateVotes(swipes, itemIds);
 
     // Step 2: Calculate scores for each item
-    const scores = this.calculateScores(voteMap, memberCount);
+    const scores = this.calculateScores(voteMap);
 
     // Step 3: Check for super like winner
     const superLikeWinner = this.checkSuperLikeWinner(voteMap, memberCount);
@@ -141,8 +141,7 @@ class DecisionEngine {
    * Calculate weighted scores for each item
    */
   private calculateScores(
-    voteMap: Map<string, Map<string, SwipeDirection>>,
-    memberCount: number
+    voteMap: Map<string, Map<string, SwipeDirection>>
   ): Record<string, { positiveVotes: number; weightedScore: number; superLikes: number }> {
     const scores: Record<string, { positiveVotes: number; weightedScore: number; superLikes: number }> = {};
 

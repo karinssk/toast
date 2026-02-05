@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth.js';
 
 const eventSchema = z.object({
@@ -39,9 +40,9 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           eventType: body.eventType,
           sessionId: body.sessionId,
           userId: user.id,
-          payload: body.payload,
-          clientTimestamp: body.clientTimestamp ? new Date(body.clientTimestamp) : null,
-          deviceInfo: body.deviceInfo || null,
+          payload: body.payload as Prisma.InputJsonValue,
+          clientTimestamp: body.clientTimestamp ? new Date(body.clientTimestamp) : undefined,
+          deviceInfo: body.deviceInfo ? (body.deviceInfo as Prisma.InputJsonValue) : undefined,
         },
       });
 
@@ -84,9 +85,9 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
                 eventType: event.eventType,
                 sessionId: event.sessionId,
                 userId: user.id,
-                payload: event.payload,
-                clientTimestamp: event.clientTimestamp ? new Date(event.clientTimestamp) : null,
-                deviceInfo: event.deviceInfo || null,
+                payload: event.payload as Prisma.InputJsonValue,
+                clientTimestamp: event.clientTimestamp ? new Date(event.clientTimestamp) : undefined,
+                deviceInfo: event.deviceInfo ? (event.deviceInfo as Prisma.InputJsonValue) : undefined,
               },
             });
             recorded++;

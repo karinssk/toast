@@ -112,7 +112,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   // POST /auth/logout - Logout (invalidate session)
   fastify.post('/logout', {
     preHandler: [authMiddleware],
-  }, async (request, reply) => {
+  }, async (_request, reply) => {
     // In a stateless JWT system, we don't need to do anything server-side
     // The client should discard the token
     // For added security, you could maintain a token blacklist in Redis

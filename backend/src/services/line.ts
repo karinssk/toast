@@ -22,11 +22,9 @@ interface LineTokenVerifyResponse {
 
 export class LineService {
   private channelId: string;
-  private channelSecret: string;
 
   constructor() {
     this.channelId = env.LINE_CHANNEL_ID;
-    this.channelSecret = env.LINE_CHANNEL_SECRET;
   }
 
   /**
@@ -50,7 +48,7 @@ export class LineService {
       throw new Error('Invalid LINE ID token');
     }
 
-    const data: LineTokenVerifyResponse = await response.json();
+    const data = (await response.json()) as LineTokenVerifyResponse;
 
     // Validate audience (channel ID)
     if (data.aud !== this.channelId) {
@@ -83,7 +81,7 @@ export class LineService {
       throw new Error('Failed to get LINE profile');
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as LineProfile;
 
     return {
       userId: data.userId,
