@@ -1,6 +1,6 @@
 import liff from '@line/liff';
 
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || '';
+const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || '2008883284-yeuZoWhO';
 
 let isInitialized = false;
 
