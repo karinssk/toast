@@ -162,21 +162,19 @@ class SocketClient {
   }
 
   // Event listeners
-  on<K extends keyof ServerToClientEvents>(
-    event: K,
-    callback: ServerToClientEvents[K]
-  ) {
-    this.socket?.on(event, callback as (...args: unknown[]) => void);
+  on<K extends keyof ServerToClientEvents>(event: K, callback: ServerToClientEvents[K]): void;
+  on(event: string, callback: (...args: unknown[]) => void): void;
+  on(event: string, callback: (...args: unknown[]) => void) {
+    (this.socket as Socket<any, any> | null)?.on(event, callback);
   }
 
-  off<K extends keyof ServerToClientEvents>(
-    event: K,
-    callback?: ServerToClientEvents[K]
-  ) {
+  off<K extends keyof ServerToClientEvents>(event: K, callback?: ServerToClientEvents[K]): void;
+  off(event: string, callback?: (...args: unknown[]) => void): void;
+  off(event: string, callback?: (...args: unknown[]) => void) {
     if (callback) {
-      this.socket?.off(event, callback as (...args: unknown[]) => void);
+      (this.socket as Socket<any, any> | null)?.off(event, callback);
     } else {
-      this.socket?.off(event);
+      (this.socket as Socket<any, any> | null)?.off(event);
     }
   }
 }

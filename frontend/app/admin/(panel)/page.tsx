@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/admin-api';
@@ -85,7 +85,7 @@ export default function AdminDashboardPage() {
               <div key={session.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
                 <div>
                   <div className="font-medium text-slate-800">{session.code}</div>
-                  <div className="text-xs text-slate-500">{session.mode} � {session.status}</div>
+                  <div className="text-xs text-slate-500">{session.mode} · {session.status}</div>
                 </div>
                 <div className="text-xs text-slate-500">Members: {session._count?.members ?? 0}</div>
               </div>
@@ -96,3 +96,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+

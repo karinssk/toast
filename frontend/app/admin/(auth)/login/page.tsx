@@ -1,4 +1,4 @@
-'use client';
+ï»¿'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               required
             />
           </div>
@@ -64,3 +64,4 @@ export default function AdminLoginPage() {
     </div>
   );
 }
+

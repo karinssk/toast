@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/admin-api';
@@ -66,7 +66,7 @@ export default function AdminSessionsPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className="font-medium text-slate-800">{session.code}</div>
-                      <div className="text-xs text-slate-500">{session.mode} � {session.status}</div>
+                      <div className="text-xs text-slate-500">{session.mode} · {session.status}</div>
                       <div className="text-xs text-slate-400">Owner: {session.owner?.displayName || 'Unknown'}</div>
                     </div>
                     <div className="flex flex-wrap gap-2 items-center">
@@ -95,3 +95,4 @@ export default function AdminSessionsPage() {
     </div>
   );
 }
+

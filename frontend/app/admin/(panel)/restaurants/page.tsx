@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/admin-api';
@@ -257,7 +257,7 @@ export default function AdminRestaurantsPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className="font-medium text-slate-800">{restaurant.name}</div>
-                      <div className="text-xs text-slate-500">{restaurant.address} � Active: {restaurant.isActive ? 'Yes' : 'No'}</div>
+                      <div className="text-xs text-slate-500">{restaurant.address} · Active: {restaurant.isActive ? 'Yes' : 'No'}</div>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -300,3 +300,4 @@ export default function AdminRestaurantsPage() {
     </div>
   );
 }
+
