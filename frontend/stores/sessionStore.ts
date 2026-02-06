@@ -32,7 +32,7 @@ interface SessionState {
   // API actions
   createSession: (mode: 'SOLO' | 'GROUP', filters: SessionFilters) => Promise<Session | null>;
   joinSession: (code: string) => Promise<Session | null>;
-  startSession: () => Promise<boolean>;
+  startSession: (sessionIdOverride?: string) => Promise<boolean>;
   leaveSession: () => Promise<void>;
 
   // Reset
@@ -153,14 +153,19 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }
   },
 
-  startSession: async () => {
+  startSession: async (sessionIdOverride?: string) => {
     const { session } = get();
-    if (!session) return false;
+    const sessionId = sessionIdOverride || session?.id;
+
+    if (!sessionId) {
+      set({ error: 'No session ID available' });
+      return false;
+    }
 
     set({ isLoading: true, error: null });
 
     try {
-      const response = await api.startSession(session.id);
+      const response = await api.startSession(sessionId);
 
       if (!response.success || !response.data) {
         set({
@@ -171,13 +176,13 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       }
 
       const { deck } = response.data;
-      set({
-        session: { ...session, status: 'ACTIVE' },
+      set((state) => ({
+        session: state.session ? { ...state.session, status: 'ACTIVE' } : null,
         deck: deck as CardInfo[],
         totalCards: deck.length,
         currentIndex: 0,
         isLoading: false,
-      });
+      }));
 
       return true;
     } catch (error) {

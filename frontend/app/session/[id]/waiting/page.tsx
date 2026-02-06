@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Copy, Share2, Users, Play, ArrowLeft, Check } from 'lucide-react';
 import { Button } from '@/components/common';
@@ -19,16 +19,43 @@ export default function WaitingRoomPage() {
   const { user } = useAuthStore();
 
   const [copied, setCopied] = useState(false);
+  const hasJoinedRef = useRef(false);
 
   const isOwner = session?.owner.userId === user?.id;
   const inviteCode = session?.code || '';
   const liffId = getLiffId();
   const inviteUrl = session?.inviteUrl || `https://liff.line.me/${liffId}?session=${inviteCode}`;
 
-  // Connect to socket and listen for updates
-  useEffect(() => {
-    if (!sessionId) return;
+  // Update members using functional update to avoid stale closure
+  const handleMemberJoined = useCallback((data: any) => {
+    useSessionStore.setState((state) => {
+      if (!state.session) return state;
+      return {
+        session: {
+          ...state.session,
+          members: [...state.session.members, data.member],
+        },
+      };
+    });
+  }, []);
 
+  const handleMemberLeft = useCallback((data: any) => {
+    useSessionStore.setState((state) => {
+      if (!state.session) return state;
+      return {
+        session: {
+          ...state.session,
+          members: state.session.members.filter((m) => m.userId !== data.userId),
+        },
+      };
+    });
+  }, []);
+
+  // Connect to socket and listen for updates - only run once per sessionId
+  useEffect(() => {
+    if (!sessionId || hasJoinedRef.current) return;
+
+    hasJoinedRef.current = true;
     const socket = socketClient.connect();
     socketClient.joinRoom(sessionId);
 
@@ -38,24 +65,10 @@ export default function WaitingRoomPage() {
     });
 
     // Listen for member joined
-    socket.on('member:joined', (data) => {
-      if (session) {
-        setSession({
-          ...session,
-          members: [...session.members, data.member],
-        });
-      }
-    });
+    socket.on('member:joined', handleMemberJoined);
 
     // Listen for member left
-    socket.on('member:left', (data) => {
-      if (session) {
-        setSession({
-          ...session,
-          members: session.members.filter((m) => m.userId !== data.userId),
-        });
-      }
-    });
+    socket.on('member:left', handleMemberLeft);
 
     // Listen for session start
     socket.on('room:started', (data) => {
@@ -71,8 +84,9 @@ export default function WaitingRoomPage() {
       socket.off('member:joined');
       socket.off('member:left');
       socket.off('room:started');
+      hasJoinedRef.current = false;
     };
-  }, [sessionId, session, setSession, setDeck, router]);
+  }, [sessionId, setSession, setDeck, router, handleMemberJoined, handleMemberLeft]);
 
   const handleCopyCode = async () => {
     try {
@@ -111,7 +125,8 @@ export default function WaitingRoomPage() {
   };
 
   const handleStart = async () => {
-    const success = await startSession();
+    // Use sessionId from URL params as fallback
+    const success = await startSession(sessionId);
     if (success) {
       router.push(`/session/${sessionId}/swipe`);
     }
