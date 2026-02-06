@@ -99,9 +99,9 @@ export default function SwipePage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-50">
+    <div className="flex-1 flex flex-col bg-gray-50 h-screen">
       {/* Header with members */}
-      <header className="bg-white px-4 py-3 border-b border-gray-100">
+      <header className="bg-white px-4 py-3 border-b border-gray-100 shrink-0">
         <MemberList
           members={session.members}
           showProgress
@@ -110,7 +110,7 @@ export default function SwipePage() {
       </header>
 
       {/* Swipe Deck */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         <SwipeDeck
           cards={deck}
           currentIndex={currentIndex}

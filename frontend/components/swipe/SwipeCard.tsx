@@ -82,7 +82,7 @@ export function SwipeCard({ card, onSwipe, isTop, disabled }: SwipeCardProps) {
     >
       {/* Card Background Image */}
       <div
-        className="absolute inset-0 bg-cover bg-center"
+        className="absolute inset-0 bg-cover bg-center bg-gray-300"
         style={{ backgroundImage: `url(${card.imageUrl})` }}
       />
 

@@ -74,7 +74,7 @@ export function SwipeDeck({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Progress */}
       <SwipeProgress
         current={currentIndex}
@@ -83,7 +83,7 @@ export function SwipeDeck({
       />
 
       {/* Card Stack */}
-      <div className="flex-1 relative mx-4 my-4">
+      <div className="flex-1 relative mx-4 my-4 min-h-0" style={{ minHeight: '400px' }}>
         <AnimatePresence>
           {visibleCards.map((card, index) => (
             <SwipeCard
