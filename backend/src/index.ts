@@ -15,6 +15,12 @@ import { menuRoutes } from './routes/menus.js';
 import { restaurantRoutes } from './routes/restaurants.js';
 import { analyticsRoutes } from './routes/analytics.js';
 
+// Admin routes
+import { adminAuthRoutes } from './routes/admin/auth.js';
+import { adminMenuRoutes } from './routes/admin/menus.js';
+import { adminRestaurantRoutes } from './routes/admin/restaurants.js';
+import { adminSessionRoutes } from './routes/admin/sessions.js';
+
 const fastify = Fastify({
   logger: {
     level: env.NODE_ENV === 'development' ? 'info' : 'warn',
@@ -27,7 +33,9 @@ const fastify = Fastify({
 // Setup Socket.IO on Fastify's server
 const io = new Server(fastify.server, {
   cors: {
-    origin: env.FRONTEND_URL,
+    origin: env.NODE_ENV === 'development'
+      ? ['http://localhost:3000', 'http://127.0.0.1:3000', env.FRONTEND_URL]
+      : env.FRONTEND_URL,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -38,7 +46,9 @@ fastify.decorate('io', io);
 
 // Register plugins
 await fastify.register(cors, {
-  origin: env.FRONTEND_URL,
+  origin: env.NODE_ENV === 'development'
+    ? ['http://localhost:3000', 'http://127.0.0.1:3000', env.FRONTEND_URL]
+    : env.FRONTEND_URL,
   credentials: true,
 });
 
@@ -65,6 +75,12 @@ await fastify.register(sessionRoutes, { prefix: '/api/v1/sessions' });
 await fastify.register(menuRoutes, { prefix: '/api/v1/menus' });
 await fastify.register(restaurantRoutes, { prefix: '/api/v1/restaurants' });
 await fastify.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
+
+// Register Admin routes
+await fastify.register(adminAuthRoutes, { prefix: '/api/v1/admin/auth' });
+await fastify.register(adminMenuRoutes, { prefix: '/api/v1/admin/menus' });
+await fastify.register(adminRestaurantRoutes, { prefix: '/api/v1/admin/restaurants' });
+await fastify.register(adminSessionRoutes, { prefix: '/api/v1/admin/sessions' });
 
 // Setup Socket.IO handlers
 setupSocketIO(io);
