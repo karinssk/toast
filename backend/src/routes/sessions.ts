@@ -106,6 +106,39 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       const liffId = process.env.LIFF_ID || 'your-liff-id';
       const inviteUrl = `https://liff.line.me/${liffId}?session=${code}`;
 
+      // For SOLO mode, fetch deck immediately since there's no waiting room
+      let deck = null;
+      if (body.mode === 'SOLO') {
+        const filters = body.filters as { cuisines?: string[]; priceRange?: [number, number] };
+        const menus = await prisma.menu.findMany({
+          where: {
+            isActive: true,
+            ...(filters.cuisines?.length ? { cuisineType: { in: filters.cuisines } } : {}),
+          },
+          orderBy: { popularity: 'desc' },
+          take: 20,
+        });
+
+        deck = menus.map((menu) => ({
+          id: menu.id,
+          type: 'menu' as const,
+          name: menu.name,
+          nameLocal: menu.nameLocal,
+          imageUrl: menu.imageUrl,
+          description: menu.description,
+          cuisineType: menu.cuisineType,
+          priceRange: [menu.priceRangeLow, menu.priceRangeHigh] as [number, number],
+          tags: menu.tags,
+        }));
+
+        // Store deck in Redis
+        await redis.setex(
+          RedisKeys.roomDeck(session.id, 'menu_swipe'),
+          RedisTTL.ROOM_STATE,
+          JSON.stringify(deck)
+        );
+      }
+
       return reply.status(201).send({
         success: true,
         data: {
@@ -133,6 +166,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
             isOwner: m.userId === session.ownerId,
           })),
           filters: session.filters,
+          ...(deck ? { deck } : {}),
         },
       });
     } catch (error) {

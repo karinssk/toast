@@ -30,7 +30,7 @@ interface SessionState {
   setPhase: (phase: SessionPhase) => void;
 
   // API actions
-  createSession: (mode: 'SOLO' | 'GROUP', filters: SessionFilters) => Promise<Session | null>;
+  createSession: (mode: 'SOLO' | 'GROUP', filters: SessionFilters) => Promise<(Session & { deck?: CardInfo[] }) | null>;
   joinSession: (code: string) => Promise<Session | null>;
   startSession: (sessionIdOverride?: string) => Promise<boolean>;
   leaveSession: () => Promise<void>;
@@ -105,13 +105,13 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         return null;
       }
 
-      const session = response.data as Session;
-      set({ session, isLoading: false });
+      const data = response.data as Session & { deck?: CardInfo[] };
+      set({ session: data, isLoading: false });
 
       // Join socket room
-      socketClient.joinRoom(session.id);
+      socketClient.joinRoom(data.id);
 
-      return session;
+      return data;
     } catch (error) {
       console.error('Create session error:', error);
       set({

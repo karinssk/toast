@@ -23,7 +23,7 @@ export default function CreateSessionPage() {
   const searchParams = useSearchParams();
   const mode = (searchParams.get('mode') as 'solo' | 'group') || 'group';
 
-  const { createSession, isLoading } = useSessionStore();
+  const { createSession, setDeck, isLoading } = useSessionStore();
 
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([1, 4]);
@@ -70,13 +70,17 @@ export default function CreateSessionPage() {
       location,
     };
 
-    const session = await createSession(mode.toUpperCase() as 'SOLO' | 'GROUP', filters);
+    const result = await createSession(mode.toUpperCase() as 'SOLO' | 'GROUP', filters);
 
-    if (session) {
+    if (result) {
       if (mode === 'solo') {
-        router.push(`/session/${session.id}/swipe`);
+        // For solo mode, deck is included in the create response
+        if (result.deck) {
+          setDeck(result.deck);
+        }
+        router.push(`/session/${result.id}/swipe`);
       } else {
-        router.push(`/session/${session.id}/waiting`);
+        router.push(`/session/${result.id}/waiting`);
       }
     }
   };
