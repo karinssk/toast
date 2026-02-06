@@ -15,7 +15,7 @@ export default function WaitingRoomPage() {
   const params = useParams();
   const sessionId = params.id as string;
 
-  const { session, setSession, startSession, isLoading } = useSessionStore();
+  const { session, setSession, setDeck, startSession, isLoading } = useSessionStore();
   const { user } = useAuthStore();
 
   const [copied, setCopied] = useState(false);
@@ -59,6 +59,10 @@ export default function WaitingRoomPage() {
 
     // Listen for session start
     socket.on('room:started', (data) => {
+      // Save the deck before navigating
+      if (data.deck) {
+        setDeck(data.deck);
+      }
       router.push(`/session/${sessionId}/swipe`);
     });
 
@@ -68,7 +72,7 @@ export default function WaitingRoomPage() {
       socket.off('member:left');
       socket.off('room:started');
     };
-  }, [sessionId, session, setSession, router]);
+  }, [sessionId, session, setSession, setDeck, router]);
 
   const handleCopyCode = async () => {
     try {

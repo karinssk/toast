@@ -458,14 +458,13 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       where: {
         isActive: true,
         ...(filters.cuisines?.length ? { cuisineType: { in: filters.cuisines } } : {}),
-        ...(filters.priceRange ? {
-          priceRangeLow: { gte: (filters.priceRange[0] - 1) * 100 },
-          priceRangeHigh: { lte: filters.priceRange[1] * 100 },
-        } : {}),
+        // Skip price filtering for MVP - prices are in actual THB values
       },
       orderBy: { popularity: 'desc' },
       take: 20, // Limit deck size for MVP
     });
+
+    console.log(`Found ${menus.length} menus for session ${sessionId}`);
 
     if (menus.length === 0) {
       return reply.status(400).send({
