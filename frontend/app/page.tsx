@@ -1,17 +1,19 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Users, User, Utensils, ArrowRight } from 'lucide-react';
+import { Users, User, Utensils, ArrowRight, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { isLoggedIn, login as liffLogin } from '@/lib/liff';
+import { useLiff } from '@/components/providers/Providers';
+import { login as liffLogin } from '@/lib/liff';
 
 export default function Home() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
+  const { isInitialized, isLoading, isLoggedIn: liffLoggedIn } = useLiff();
 
   const handleSoloMode = () => {
     if (!isAuthenticated) {
-      if (!isLoggedIn()) {
+      if (isInitialized && !liffLoggedIn) {
         liffLogin();
         return;
       }
@@ -21,7 +23,7 @@ export default function Home() {
 
   const handleGroupMode = () => {
     if (!isAuthenticated) {
-      if (!isLoggedIn()) {
+      if (isInitialized && !liffLoggedIn) {
         liffLogin();
         return;
       }
@@ -31,13 +33,25 @@ export default function Home() {
 
   const handleJoinSession = () => {
     if (!isAuthenticated) {
-      if (!isLoggedIn()) {
+      if (isInitialized && !liffLoggedIn) {
         liffLogin();
         return;
       }
     }
     router.push('/session/join');
   };
+
+  // Show loading while LIFF initializes
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-orange-400 via-orange-500 to-red-500">
+        <div className="text-center text-white">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4" />
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col">
