@@ -1,6 +1,18 @@
 import { PrismaClient } from '@prisma/client';
+import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
+
+// Password hashing function
+async function hashPassword(password: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      resolve(`${salt}:${derivedKey.toString('hex')}`);
+    });
+  });
+}
 
 async function main() {
   console.log('Seeding database...');
@@ -15,6 +27,7 @@ async function main() {
   await prisma.analyticsEvent.deleteMany();
   await prisma.restaurant.deleteMany();
   await prisma.menu.deleteMany();
+  await prisma.admin.deleteMany();
 
   // Create menus
   const menus = await Promise.all([
@@ -563,6 +576,21 @@ async function main() {
   }
 
   console.log(`Created ${mappings.length} restaurant-menu mappings`);
+
+  // Create admin user
+  const adminPassword = await hashPassword('admin123');
+  const admin = await prisma.admin.create({
+    data: {
+      username: 'admin',
+      email: 'admin_test@gmail.com',
+      passwordHash: adminPassword,
+      displayName: 'Super Admin',
+      role: 'SUPER_ADMIN',
+      isActive: true,
+    },
+  });
+
+  console.log(`Created admin user: ${admin.username} (${admin.email})`);
 
   console.log('Seeding completed!');
 }
