@@ -23,6 +23,8 @@ export async function handleSwipe(
 ): Promise<SwipeResult> {
   const { sessionId, itemId, direction, durationMs } = data;
 
+  console.log(`[SWIPE] handleSwipe called: userId=${userId}, sessionId=${sessionId}, itemId=${itemId}, direction=${direction}`);
+
   // Get session and member info
   const member = await prisma.sessionMember.findUnique({
     where: {
@@ -37,10 +39,12 @@ export async function handleSwipe(
   });
 
   if (!member || member.session.status !== SessionStatus.ACTIVE) {
+    console.log(`[SWIPE] Invalid session or member: member=${!!member}, sessionStatus=${member?.session.status}`);
     throw new Error('Invalid session or member');
   }
 
   const phase = member.session.phase;
+  console.log(`[SWIPE] Session phase from DB: ${phase}, sessionStatus: ${member.session.status}`);
 
   // Record swipe in database
   await prisma.swipe.create({
@@ -82,9 +86,11 @@ export async function handleSwipe(
 
   // Get deck to calculate progress
   const deckKey = RedisKeys.roomDeck(sessionId, phase === SessionPhase.MENU_SWIPE ? 'menu_swipe' : 'restaurant_swipe');
+  console.log(`[SWIPE] Deck Redis key: ${deckKey}`);
   const deckData = await redis.get(deckKey);
   const deck = deckData ? JSON.parse(deckData) : [];
   const totalCards = deck.length;
+  console.log(`[SWIPE] Deck found: ${!!deckData}, totalCards: ${totalCards}, deckItemIds: ${deck.map((c: { id: string }) => c.id).join(', ')}`);
 
   // Get all members' progress
   const members = await prisma.sessionMember.findMany({
@@ -105,10 +111,13 @@ export async function handleSwipe(
   for (const m of members) {
     const progress = phase === SessionPhase.MENU_SWIPE ? m.menuSwipeIndex : m.restSwipeIndex;
     memberProgress[m.userId] = progress;
+    console.log(`[SWIPE] Member ${m.userId}: menuSwipeIndex=${m.menuSwipeIndex}, restSwipeIndex=${m.restSwipeIndex}, progress=${progress}, totalCards=${totalCards}`);
     if (progress < totalCards) {
       allComplete = false;
     }
   }
+
+  console.log(`[SWIPE] allComplete: ${allComplete}, shouldCheckMatch: ${allComplete}`);
 
   return {
     totalCards,
@@ -121,6 +130,8 @@ export async function checkForMatch(
   sessionId: string,
   io: Server
 ): Promise<boolean> {
+  console.log(`[MATCH] checkForMatch called for session: ${sessionId}`);
+
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: {
@@ -130,10 +141,14 @@ export async function checkForMatch(
     },
   });
 
-  if (!session) return false;
+  if (!session) {
+    console.log(`[MATCH] Session not found: ${sessionId}`);
+    return false;
+  }
 
   const phase = session.phase;
   const memberCount = session.members.length;
+  console.log(`[MATCH] Session phase: ${phase}, status: ${session.status}, memberCount: ${memberCount}`);
 
   // Get all swipes for this phase
   const swipes = await prisma.swipe.findMany({
@@ -142,12 +157,18 @@ export async function checkForMatch(
       phase,
     },
   });
+  console.log(`[MATCH] Swipes found for phase ${phase}: ${swipes.length}`);
+  swipes.forEach((s, i) => {
+    console.log(`[MATCH]   Swipe[${i}]: userId=${s.userId}, menuId=${s.menuId}, restaurantId=${s.restaurantId}, direction=${s.direction}, phase=${s.phase}`);
+  });
 
   // Get deck items
   const deckKey = RedisKeys.roomDeck(sessionId, phase === SessionPhase.MENU_SWIPE ? 'menu_swipe' : 'restaurant_swipe');
+  console.log(`[MATCH] Deck Redis key: ${deckKey}`);
   const deckData = await redis.get(deckKey);
   const deck = deckData ? JSON.parse(deckData) : [];
   const itemIds = deck.map((card: { id: string }) => card.id);
+  console.log(`[MATCH] Deck found: ${!!deckData}, itemIds count: ${itemIds.length}, itemIds: ${itemIds.join(', ')}`);
 
   // Convert swipes to engine format
   const swipeData = swipes.map((s) => ({
@@ -155,12 +176,15 @@ export async function checkForMatch(
     itemId: s.menuId || s.restaurantId || '',
     direction: s.direction,
   }));
+  console.log(`[MATCH] SwipeData for engine:`, JSON.stringify(swipeData));
 
   // Calculate match
   const matchResult = decisionEngine.calculateMatch(swipeData, memberCount, itemIds);
+  console.log(`[MATCH] Match result: type=${matchResult.type}, winnerId=${matchResult.winnerId}, confidence=${matchResult.confidence}, tiedItems=${JSON.stringify(matchResult.tiedItems)}, topItems=${JSON.stringify(matchResult.topItems)}`);
 
   if (!matchResult.winnerId && (!matchResult.tiedItems || matchResult.tiedItems.length === 0)) {
     // No match found
+    console.log(`[MATCH] No match found - emitting match:none`);
     io.to(`session:${sessionId}`).emit('match:none', {
       sessionId,
       phase,
@@ -172,6 +196,7 @@ export async function checkForMatch(
   if (matchResult.type === MatchType.TIE && matchResult.tiedItems?.length) {
     // Resolve tie
     const winnerId = decisionEngine.resolveTie(matchResult.tiedItems, sessionId);
+    console.log(`[MATCH] Tie resolved: winnerId=${winnerId}`);
     matchResult.winnerId = winnerId;
   }
 
@@ -194,6 +219,7 @@ export async function checkForMatch(
   });
 
   // Emit match found event
+  console.log(`[MATCH] Emitting match:found: winnerId=${matchResult.winnerId}, type=${matchResult.type}`);
   io.to(`session:${sessionId}`).emit('match:found', {
     sessionId,
     phase,
@@ -204,7 +230,9 @@ export async function checkForMatch(
   });
 
   // Transition to next phase
+  console.log(`[MATCH] About to transition phase. Current phase: ${phase}`);
   if (phase === SessionPhase.MENU_SWIPE) {
+    console.log(`[MATCH] Entering MENU_SWIPE branch -> transitioning to MENU_RESULT`);
     // Get restaurants for the matched menu
     const restaurants = await prisma.restaurantMenu.findMany({
       where: {
@@ -261,6 +289,7 @@ export async function checkForMatch(
       restaurants: restaurantDeck,
     });
   } else if (phase === SessionPhase.RESTAURANT_SWIPE) {
+    console.log(`[MATCH] Entering RESTAURANT_SWIPE branch -> transitioning to FINAL_RESULT`);
     // Final decision
     const menu = await prisma.menu.findFirst({
       where: {
@@ -308,6 +337,7 @@ export async function checkForMatch(
       },
     });
 
+    console.log(`[MATCH] Emitting phase:final_result for session ${sessionId}, menu=${menu?.name}, restaurant=${restaurant?.name}`);
     io.to(`session:${sessionId}`).emit('phase:final_result', {
       sessionId,
       menu: menu ? {

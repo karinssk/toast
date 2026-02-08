@@ -39,16 +39,23 @@ export default function SwipePage() {
 
     // Listen for progress updates
     socket.on('swipe:progress', (data) => {
+      console.log('[SWIPE-UI] swipe:progress received:', JSON.stringify(data));
       updateProgress(data.memberProgress, data.totalCards);
     });
 
     // Listen for match found
     socket.on('match:found', (data) => {
-      console.log('Match found:', data);
+      console.log('[SWIPE-UI] match:found received:', JSON.stringify(data));
+    });
+
+    // Listen for match:none
+    socket.on('match:none', (data) => {
+      console.log('[SWIPE-UI] match:none received:', JSON.stringify(data));
     });
 
     // Listen for menu result (transition to restaurant phase)
     socket.on('phase:menu_result', (data) => {
+      console.log('[SWIPE-UI] phase:menu_result received:', JSON.stringify(data));
       setMatchedMenu(data.menu);
       // Store restaurant deck for next phase
       if (data.restaurants) {
@@ -59,6 +66,7 @@ export default function SwipePage() {
 
     // Listen for final result
     socket.on('phase:final_result', (data) => {
+      console.log('[SWIPE-UI] phase:final_result received:', JSON.stringify(data));
       router.push(`/session/${sessionId}/result`);
     });
 
@@ -70,6 +78,7 @@ export default function SwipePage() {
     return () => {
       socket.off('swipe:progress');
       socket.off('match:found');
+      socket.off('match:none');
       socket.off('phase:menu_result');
       socket.off('phase:final_result');
       socket.off('room:started');
@@ -83,16 +92,16 @@ export default function SwipePage() {
 
   const handleSwipe = useCallback(
     (itemId: string, direction: SwipeDirection) => {
+      console.log(`[SWIPE-UI] handleSwipe: itemId=${itemId}, direction=${direction}, sessionPhase=${session?.phase}`);
       recordSwipe(sessionId, itemId, direction);
       incrementIndex();
     },
-    [sessionId, recordSwipe, incrementIndex]
+    [sessionId, session?.phase, recordSwipe, incrementIndex]
   );
 
   const handleComplete = useCallback(() => {
-    // User finished swiping, waiting for others
-    console.log('Swiping complete, waiting for others...');
-  }, []);
+    console.log(`[SWIPE-UI] handleComplete called - swiping complete, waiting for others. Session phase: ${session?.phase}`);
+  }, [session?.phase]);
 
   if (!session || deck.length === 0) {
     return (

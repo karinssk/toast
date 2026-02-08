@@ -219,11 +219,16 @@ export function setupSocketIO(io: Server) {
         });
 
         // Check if we should compute a match
+        console.log(`[SOCKET] Swipe result: shouldCheckMatch=${result.shouldCheckMatch}, totalCards=${result.totalCards}, memberProgress=${JSON.stringify(result.memberProgress)}`);
         if (result.shouldCheckMatch) {
+          console.log(`[SOCKET] Calling checkForMatch for session ${data.sessionId}...`);
           const matchResult = await checkForMatch(data.sessionId, io);
+          console.log(`[SOCKET] checkForMatch returned: ${matchResult}`);
           if (matchResult) {
             console.log(`Match found in session ${data.sessionId}:`, matchResult);
           }
+        } else {
+          console.log(`[SOCKET] Not checking for match yet (not all members complete)`);
         }
       } catch (error) {
         console.error('Error processing swipe:', error);

@@ -23,19 +23,27 @@ export default function MenuResultPage() {
     setContinuing(true);
     resetSwipe();
 
+    console.log(`[MENU-RESULT] handleContinue called, sessionId=${sessionId}`);
+    console.log(`[MENU-RESULT] pendingRestaurantDeck length: ${pendingRestaurantDeck.length}`);
+
     // Call API to transition phase (ensures DB is updated before swiping)
     const response = await api.continueSession(sessionId);
+    console.log(`[MENU-RESULT] continueSession API response:`, JSON.stringify(response));
 
     if (response.success && response.data) {
       const { deck } = response.data;
+      console.log(`[MENU-RESULT] API deck length: ${deck?.length}, pendingDeck length: ${pendingRestaurantDeck.length}`);
       if (deck && deck.length > 0) {
+        console.log(`[MENU-RESULT] Using API deck, first item: ${JSON.stringify(deck[0])}`);
         setDeck(deck as CardInfo[]);
       } else if (pendingRestaurantDeck.length > 0) {
+        console.log(`[MENU-RESULT] Using pendingRestaurantDeck`);
         setDeck(pendingRestaurantDeck);
       }
       setPhase('RESTAURANT_SWIPE');
       router.push(`/session/${sessionId}/swipe`);
     } else {
+      console.log(`[MENU-RESULT] API failed, falling back to pendingRestaurantDeck`);
       // Fallback: use pending deck if API fails
       if (pendingRestaurantDeck.length > 0) {
         setDeck(pendingRestaurantDeck);
