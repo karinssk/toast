@@ -7,6 +7,13 @@ import { Button } from '@/components/common';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { SessionFilters } from '@/types';
 
+const PRICE_LEVELS = [
+  { level: 1, label: '฿', description: 'Under ฿100' },
+  { level: 2, label: '฿฿', description: '฿100-300' },
+  { level: 3, label: '฿฿฿', description: '฿300-500' },
+  { level: 4, label: '฿฿฿฿', description: '฿500+' },
+];
+
 const CUISINES = [
   { id: 'thai', label: 'Thai', emoji: '🇹🇭' },
   { id: 'japanese', label: 'Japanese', emoji: '🇯🇵' },
@@ -132,7 +139,7 @@ export default function CreateSessionPage() {
             Price Range
           </h2>
           <div className="flex gap-2">
-            {[1, 2, 3, 4].map((level) => (
+            {PRICE_LEVELS.map(({ level, label, description }) => (
               <button
                 key={level}
                 onClick={() => {
@@ -144,13 +151,14 @@ export default function CreateSessionPage() {
                     setPriceRange([level, level]);
                   }
                 }}
-                className={`flex-1 py-3 rounded-lg text-center font-medium transition-colors ${
+                className={`flex-1 py-3 rounded-lg text-center transition-colors ${
                   level >= priceRange[0] && level <= priceRange[1]
                     ? 'bg-orange-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {'฿'.repeat(level)}
+                <div className="font-bold text-sm">{label}</div>
+                <div className="text-xs mt-0.5 opacity-80">{description}</div>
               </button>
             ))}
           </div>
