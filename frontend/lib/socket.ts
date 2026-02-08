@@ -74,6 +74,7 @@ type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 class SocketClient {
   private socket: TypedSocket | null = null;
   private token: string | null = null;
+  private currentRoom: string | null = null;
 
   setToken(token: string | null) {
     this.token = token;
@@ -96,6 +97,12 @@ class SocketClient {
 
     this.socket.on('connect', () => {
       console.log('Socket connected');
+      // Re-join room on reconnect
+      if (this.currentRoom) {
+        const roomToRejoin = this.currentRoom;
+        this.currentRoom = null; // Reset so joinRoom doesn't skip it
+        this.joinRoom(roomToRejoin);
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -114,6 +121,7 @@ class SocketClient {
       this.socket.disconnect();
       this.socket = null;
     }
+    this.currentRoom = null;
   }
 
   getSocket(): TypedSocket | null {
@@ -126,10 +134,20 @@ class SocketClient {
 
   // Room operations
   joinRoom(sessionId: string) {
+    // Prevent duplicate joins for the same room
+    if (this.currentRoom === sessionId) {
+      return;
+    }
+    // Leave previous room if any
+    if (this.currentRoom && this.currentRoom !== sessionId) {
+      this.socket?.emit('room:leave', { sessionId: this.currentRoom });
+    }
+    this.currentRoom = sessionId;
     this.socket?.emit('room:join', { sessionId });
   }
 
   leaveRoom(sessionId: string) {
+    this.currentRoom = null;
     this.socket?.emit('room:leave', { sessionId });
   }
 

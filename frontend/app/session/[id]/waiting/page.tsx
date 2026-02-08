@@ -8,6 +8,7 @@ import { MemberList } from '@/components/session';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuthStore } from '@/stores/authStore';
 import { socketClient } from '@/lib/socket';
+import { api } from '@/lib/api';
 import { shareTargetPicker, isInClient, getLiffId } from '@/lib/liff';
 
 export default function WaitingRoomPage() {
@@ -30,6 +31,10 @@ export default function WaitingRoomPage() {
   const handleMemberJoined = useCallback((data: any) => {
     useSessionStore.setState((state) => {
       if (!state.session) return state;
+      // Prevent duplicate members
+      if (state.session.members.some((m) => m.userId === data.member.userId)) {
+        return state;
+      }
       return {
         session: {
           ...state.session,
@@ -61,7 +66,17 @@ export default function WaitingRoomPage() {
 
     // Listen for room state
     socket.on('room:state', (data) => {
-      setSession(data as any);
+      // Deduplicate members by userId
+      const sessionData = data as any;
+      if (sessionData.members) {
+        const seen = new Set<string>();
+        sessionData.members = sessionData.members.filter((m: any) => {
+          if (seen.has(m.userId)) return false;
+          seen.add(m.userId);
+          return true;
+        });
+      }
+      setSession(sessionData);
     });
 
     // Listen for member joined
@@ -129,6 +144,22 @@ export default function WaitingRoomPage() {
     const success = await startSession(sessionId);
     if (success) {
       router.push(`/session/${sessionId}/swipe`);
+    } else {
+      // Session might already be active (e.g. from previous start attempt)
+      // Fetch latest session state and navigate accordingly
+      try {
+        const response = await api.getSession(sessionId);
+        if (response.success && response.data) {
+          const sessionData = response.data as { status: string };
+          if (sessionData.status === 'ACTIVE') {
+            router.push(`/session/${sessionId}/swipe`);
+          } else if (sessionData.status === 'COMPLETED') {
+            router.push(`/session/${sessionId}/result`);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch session status:', e);
+      }
     }
   };
 
