@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run db:seed:*)"
+      "Bash(npm run db:seed:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run dev:*)",
+      "Bash(docker compose:*)",
+      "Bash(start \"\" \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(timeout:*)",
+      "Bash(docker info:*)",
+      "Bash(curl:*)"
     ]
   }
 }

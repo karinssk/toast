@@ -30,6 +30,19 @@ const fastify = Fastify({
   },
 });
 
+// Add content-type parser that accepts empty JSON bodies
+// This prevents 400 errors when POST requests have Content-Type: application/json but no body
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function (_req, body, done) {
+  try {
+    const str = (body as string || '').trim();
+    const json = str.length === 0 ? {} : JSON.parse(str);
+    done(null, json);
+  } catch (err: any) {
+    err.statusCode = 400;
+    done(err, undefined);
+  }
+});
+
 // Setup Socket.IO on Fastify's server
 const io = new Server(fastify.server, {
   cors: {
@@ -72,7 +85,7 @@ fastify.addHook('onResponse', async (request, reply) => {
   }
 });
 
-fastify.addHook('onError', async (request, reply, error) => {
+fastify.addHook('onError', async (request, _reply, error) => {
   if (request.url.includes('/sessions/')) {
     console.log(`[HTTP-ERROR] ${request.method} ${request.url} -> Error: ${error.message}, statusCode: ${error.statusCode || 'unknown'}`);
   }
