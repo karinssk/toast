@@ -1,31 +1,48 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ChefHat, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/common';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSwipeStore } from '@/stores/swipeStore';
-import { socketClient } from '@/lib/socket';
+import { api } from '@/lib/api';
+import type { CardInfo } from '@/types';
 
 export default function MenuResultPage() {
   const router = useRouter();
   const params = useParams();
   const sessionId = params.id as string;
+  const [continuing, setContinuing] = useState(false);
 
   const { matchedMenu, pendingRestaurantDeck, setDeck, setPhase } = useSessionStore();
   const { reset: resetSwipe } = useSwipeStore();
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    setContinuing(true);
     resetSwipe();
-    // Set the restaurant deck that was stored when phase:menu_result was received
-    if (pendingRestaurantDeck.length > 0) {
-      setDeck(pendingRestaurantDeck);
+
+    // Call API to transition phase (ensures DB is updated before swiping)
+    const response = await api.continueSession(sessionId);
+
+    if (response.success && response.data) {
+      const { deck } = response.data;
+      if (deck && deck.length > 0) {
+        setDeck(deck as CardInfo[]);
+      } else if (pendingRestaurantDeck.length > 0) {
+        setDeck(pendingRestaurantDeck);
+      }
+      setPhase('RESTAURANT_SWIPE');
+      router.push(`/session/${sessionId}/swipe`);
+    } else {
+      // Fallback: use pending deck if API fails
+      if (pendingRestaurantDeck.length > 0) {
+        setDeck(pendingRestaurantDeck);
+      }
+      setPhase('RESTAURANT_SWIPE');
+      router.push(`/session/${sessionId}/swipe`);
     }
-    setPhase('RESTAURANT_SWIPE');
-    // Tell backend to transition phase
-    socketClient.continueToNextPhase(sessionId);
-    router.push(`/session/${sessionId}/swipe`);
   };
 
   if (!matchedMenu) {
@@ -112,6 +129,7 @@ export default function MenuResultPage() {
       >
         <Button
           onClick={handleContinue}
+          isLoading={continuing}
           className="w-full bg-white text-orange-600 hover:bg-gray-100"
           size="lg"
         >

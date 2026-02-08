@@ -555,6 +555,69 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // POST /sessions/:sessionId/continue - Continue to next phase (menu result → restaurant swipe)
+  fastify.post('/:sessionId/continue', async (request, reply) => {
+    const user = request.user!;
+    const { sessionId } = request.params as { sessionId: string };
+
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        members: {
+          where: { status: MemberStatus.ACTIVE },
+        },
+      },
+    });
+
+    if (!session) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
+      });
+    }
+
+    // Check membership
+    const isMember = session.members.some((m) => m.userId === user.id);
+    if (!isMember) {
+      return reply.status(403).send({
+        success: false,
+        error: { code: 'NOT_A_MEMBER', message: 'You are not a member of this session' },
+      });
+    }
+
+    if (session.phase !== SessionPhase.MENU_RESULT) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_PHASE', message: 'Session is not in menu result phase' },
+      });
+    }
+
+    // Transition to restaurant swipe
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { phase: SessionPhase.RESTAURANT_SWIPE },
+    });
+
+    // Reset restaurant swipe progress for all members
+    await prisma.sessionMember.updateMany({
+      where: { sessionId, status: MemberStatus.ACTIVE },
+      data: { restSwipeIndex: 0 },
+    });
+
+    // Get restaurant deck from Redis
+    const deckData = await redis.get(RedisKeys.roomDeck(sessionId, 'restaurant_swipe'));
+    const deck = deckData ? JSON.parse(deckData) : [];
+
+    return reply.send({
+      success: true,
+      data: {
+        sessionId,
+        phase: SessionPhase.RESTAURANT_SWIPE,
+        deck,
+      },
+    });
+  });
+
   // POST /sessions/:sessionId/leave - Leave a session
   fastify.post('/:sessionId/leave', async (request, reply) => {
     const user = request.user!;

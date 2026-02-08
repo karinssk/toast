@@ -151,6 +151,16 @@ class ApiClient {
     });
   }
 
+  async continueSession(sessionId: string) {
+    return this.request<{
+      sessionId: string;
+      phase: string;
+      deck: unknown[];
+    }>(`/sessions/${sessionId}/continue`, {
+      method: 'POST',
+    });
+  }
+
   async leaveSession(sessionId: string) {
     return this.request(`/sessions/${sessionId}/leave`, {
       method: 'POST',
