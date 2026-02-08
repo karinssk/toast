@@ -95,6 +95,8 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         },
       });
 
+      console.log(`[CREATE] Session created: id=${session.id}, mode=${session.mode}, status=${session.status}, ownerId=${session.ownerId}`);
+
       // Store invite code in Redis for quick lookup
       await redis.setex(
         RedisKeys.inviteCode(code),
@@ -445,6 +447,8 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     const user = request.user!;
     const { sessionId } = request.params as { sessionId: string };
 
+    console.log(`[START] POST /sessions/${sessionId}/start called by user ${user.id}`);
+
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: {
@@ -455,6 +459,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     });
 
     if (!session) {
+      console.log(`[START] Session not found: ${sessionId}`);
       return reply.status(404).send({
         success: false,
         error: {
@@ -464,8 +469,11 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       });
     }
 
+    console.log(`[START] Session found: id=${session.id}, mode=${session.mode}, status=${session.status}, phase=${session.phase}, ownerId=${session.ownerId}, members=${session.members.length}`);
+
     // Check if user is owner
     if (session.ownerId !== user.id) {
+      console.log(`[START] Not owner: user=${user.id}, owner=${session.ownerId}`);
       return reply.status(403).send({
         success: false,
         error: {
@@ -477,11 +485,12 @@ export async function sessionRoutes(fastify: FastifyInstance) {
 
     // Check if session can be started
     if (session.status !== SessionStatus.WAITING) {
+      console.log(`[START] Invalid status: ${session.status} (expected WAITING)`);
       return reply.status(400).send({
         success: false,
         error: {
           code: 'INVALID_STATUS',
-          message: 'Session has already started or ended',
+          message: `Session has already started or ended (status: ${session.status})`,
         },
       });
     }
