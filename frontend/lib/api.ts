@@ -28,6 +28,12 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
     }
 
+    // Ensure POST/PATCH/PUT requests always have a body to avoid Fastify 400 errors
+    const method = options.method?.toUpperCase();
+    if ((method === 'POST' || method === 'PATCH' || method === 'PUT') && !options.body) {
+      options.body = JSON.stringify({});
+    }
+
     try {
       const response = await fetch(url, {
         ...options,
