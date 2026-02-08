@@ -1,44 +1,29 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ChefHat, ArrowRight, Star } from 'lucide-react';
+import { ChefHat, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/common';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSwipeStore } from '@/stores/swipeStore';
 import { socketClient } from '@/lib/socket';
-import type { CardInfo } from '@/types';
 
 export default function MenuResultPage() {
   const router = useRouter();
   const params = useParams();
   const sessionId = params.id as string;
 
-  const { matchedMenu, setDeck, setPhase } = useSessionStore();
+  const { matchedMenu, pendingRestaurantDeck, setDeck, setPhase } = useSessionStore();
   const { reset: resetSwipe } = useSwipeStore();
-
-  // Listen for restaurant deck
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const socket = socketClient.connect();
-
-    // Already listened in swipe page, but listen here too for safety
-    socket.on('phase:menu_result', (data) => {
-      if (data.restaurants) {
-        setDeck(data.restaurants as CardInfo[]);
-      }
-    });
-
-    return () => {
-      socket.off('phase:menu_result');
-    };
-  }, [sessionId, setDeck]);
 
   const handleContinue = () => {
     resetSwipe();
+    // Set the restaurant deck that was stored when phase:menu_result was received
+    if (pendingRestaurantDeck.length > 0) {
+      setDeck(pendingRestaurantDeck);
+    }
     setPhase('RESTAURANT_SWIPE');
+    // Tell backend to transition phase
     socketClient.continueToNextPhase(sessionId);
     router.push(`/session/${sessionId}/swipe`);
   };

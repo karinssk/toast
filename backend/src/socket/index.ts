@@ -235,6 +235,43 @@ export function setupSocketIO(io: Server) {
       }
     });
 
+    // Handle phase:continue - transition from menu result to restaurant swipe
+    socket.on('phase:continue', async (data: { sessionId: string }) => {
+      try {
+        const { sessionId } = data;
+
+        const session = await prisma.session.findUnique({
+          where: { id: sessionId },
+        });
+
+        if (!session) return;
+
+        // Transition from MENU_RESULT to RESTAURANT_SWIPE
+        if (session.phase === 'MENU_RESULT') {
+          await prisma.session.update({
+            where: { id: sessionId },
+            data: { phase: 'RESTAURANT_SWIPE' },
+          });
+
+          // Get restaurant deck from Redis
+          const deckData = await redis.get(RedisKeys.roomDeck(sessionId, 'restaurant_swipe'));
+          const deck = deckData ? JSON.parse(deckData) : [];
+
+          // Notify all members in the room
+          io.to(`session:${sessionId}`).emit('phase:transition', {
+            sessionId,
+            fromPhase: 'MENU_RESULT',
+            toPhase: 'RESTAURANT_SWIPE',
+            data: { deck },
+          });
+
+          console.log(`Session ${sessionId} transitioned to RESTAURANT_SWIPE with ${deck.length} restaurants`);
+        }
+      } catch (error) {
+        console.error('Error handling phase:continue:', error);
+      }
+    });
+
     // Handle presence ping
     socket.on('presence:ping', () => {
       updatePresence(socket.userId!);

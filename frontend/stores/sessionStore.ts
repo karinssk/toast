@@ -11,6 +11,7 @@ interface SessionState {
   currentIndex: number;
   matchedMenu: MenuInfo | null;
   matchedRestaurant: RestaurantInfo | null;
+  pendingRestaurantDeck: CardInfo[];
   isLoading: boolean;
   error: string | null;
 
@@ -25,6 +26,7 @@ interface SessionState {
   incrementIndex: () => void;
   setMatchedMenu: (menu: MenuInfo | null) => void;
   setMatchedRestaurant: (restaurant: RestaurantInfo | null) => void;
+  setPendingRestaurantDeck: (deck: CardInfo[]) => void;
   updateMember: (userId: string, updates: Partial<MemberInfo>) => void;
   updateProgress: (progress: Record<string, number>, total: number) => void;
   setPhase: (phase: SessionPhase) => void;
@@ -45,6 +47,7 @@ const initialState = {
   currentIndex: 0,
   matchedMenu: null,
   matchedRestaurant: null,
+  pendingRestaurantDeck: [] as CardInfo[],
   isLoading: false,
   error: null,
   memberProgress: {},
@@ -65,6 +68,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   setMatchedMenu: (menu) => set({ matchedMenu: menu }),
 
   setMatchedRestaurant: (restaurant) => set({ matchedRestaurant: restaurant }),
+
+  setPendingRestaurantDeck: (deck) => set({ pendingRestaurantDeck: deck }),
 
   updateMember: (userId, updates) =>
     set((state) => {

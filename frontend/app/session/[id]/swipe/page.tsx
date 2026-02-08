@@ -21,6 +21,7 @@ export default function SwipePage() {
     incrementIndex,
     setDeck,
     setMatchedMenu,
+    setPendingRestaurantDeck,
     setPhase,
     updateProgress,
     memberProgress,
@@ -49,6 +50,10 @@ export default function SwipePage() {
     // Listen for menu result (transition to restaurant phase)
     socket.on('phase:menu_result', (data) => {
       setMatchedMenu(data.menu);
+      // Store restaurant deck for next phase
+      if (data.restaurants) {
+        setPendingRestaurantDeck(data.restaurants as CardInfo[]);
+      }
       router.push(`/session/${sessionId}/menu-result`);
     });
 
@@ -69,7 +74,7 @@ export default function SwipePage() {
       socket.off('phase:final_result');
       socket.off('room:started');
     };
-  }, [sessionId, router, setMatchedMenu, setDeck, updateProgress]);
+  }, [sessionId, router, setMatchedMenu, setPendingRestaurantDeck, setDeck, updateProgress]);
 
   // Reset swipe store when component mounts
   useEffect(() => {
