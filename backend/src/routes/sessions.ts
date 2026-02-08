@@ -560,6 +560,8 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     const user = request.user!;
     const { sessionId } = request.params as { sessionId: string };
 
+    console.log(`[CONTINUE] POST /sessions/${sessionId}/continue called by user ${user.id}`);
+
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: {
@@ -570,15 +572,19 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     });
 
     if (!session) {
+      console.log(`[CONTINUE] Session not found: ${sessionId}`);
       return reply.status(404).send({
         success: false,
         error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' },
       });
     }
 
+    console.log(`[CONTINUE] Session phase: ${session.phase}, status: ${session.status}`);
+
     // Check membership
     const isMember = session.members.some((m) => m.userId === user.id);
     if (!isMember) {
+      console.log(`[CONTINUE] User ${user.id} is not a member`);
       return reply.status(403).send({
         success: false,
         error: { code: 'NOT_A_MEMBER', message: 'You are not a member of this session' },
@@ -586,6 +592,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     }
 
     if (session.phase !== SessionPhase.MENU_RESULT) {
+      console.log(`[CONTINUE] Invalid phase: ${session.phase} (expected MENU_RESULT)`);
       return reply.status(400).send({
         success: false,
         error: { code: 'INVALID_PHASE', message: 'Session is not in menu result phase' },
@@ -597,6 +604,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       where: { id: sessionId },
       data: { phase: SessionPhase.RESTAURANT_SWIPE },
     });
+    console.log(`[CONTINUE] Phase updated to RESTAURANT_SWIPE`);
 
     // Reset restaurant swipe progress for all members
     await prisma.sessionMember.updateMany({
@@ -607,6 +615,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     // Get restaurant deck from Redis
     const deckData = await redis.get(RedisKeys.roomDeck(sessionId, 'restaurant_swipe'));
     const deck = deckData ? JSON.parse(deckData) : [];
+    console.log(`[CONTINUE] Restaurant deck: ${deck.length} items`);
 
     return reply.send({
       success: true,

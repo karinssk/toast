@@ -27,8 +27,17 @@ export default function MenuResultPage() {
     console.log(`[MENU-RESULT] pendingRestaurantDeck length: ${pendingRestaurantDeck.length}`);
 
     // Call API to transition phase (ensures DB is updated before swiping)
-    const response = await api.continueSession(sessionId);
+    let retries = 0;
+    let response = await api.continueSession(sessionId);
     console.log(`[MENU-RESULT] continueSession API response:`, JSON.stringify(response));
+
+    // Retry once if it fails (network hiccup)
+    if (!response.success && retries < 1) {
+      retries++;
+      console.log(`[MENU-RESULT] Retrying continueSession API...`);
+      response = await api.continueSession(sessionId);
+      console.log(`[MENU-RESULT] Retry response:`, JSON.stringify(response));
+    }
 
     if (response.success && response.data) {
       const { deck } = response.data;
@@ -40,17 +49,17 @@ export default function MenuResultPage() {
         console.log(`[MENU-RESULT] Using pendingRestaurantDeck`);
         setDeck(pendingRestaurantDeck);
       }
-      setPhase('RESTAURANT_SWIPE');
-      router.push(`/session/${sessionId}/swipe`);
     } else {
       console.log(`[MENU-RESULT] API failed, falling back to pendingRestaurantDeck`);
       // Fallback: use pending deck if API fails
       if (pendingRestaurantDeck.length > 0) {
         setDeck(pendingRestaurantDeck);
       }
-      setPhase('RESTAURANT_SWIPE');
-      router.push(`/session/${sessionId}/swipe`);
     }
+
+    // Always navigate - the backend handleSwipe now handles MENU_RESULT phase correctly
+    setPhase('RESTAURANT_SWIPE');
+    router.push(`/session/${sessionId}/swipe`);
   };
 
   if (!matchedMenu) {

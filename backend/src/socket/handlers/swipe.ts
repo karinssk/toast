@@ -43,16 +43,20 @@ export async function handleSwipe(
     throw new Error('Invalid session or member');
   }
 
-  const phase = member.session.phase;
-  console.log(`[SWIPE] Session phase from DB: ${phase}, sessionStatus: ${member.session.status}`);
+  const rawPhase = member.session.phase;
+  // MENU_RESULT is a transitional phase - if swipes arrive during it, treat as RESTAURANT_SWIPE
+  const phase = rawPhase === SessionPhase.MENU_RESULT ? SessionPhase.RESTAURANT_SWIPE : rawPhase;
+  console.log(`[SWIPE] Session phase from DB: ${rawPhase}, effective phase: ${phase}, sessionStatus: ${member.session.status}`);
+
+  const isMenuPhase = phase === SessionPhase.MENU_SWIPE;
 
   // Record swipe in database
   await prisma.swipe.create({
     data: {
       sessionId,
       userId,
-      menuId: phase === SessionPhase.MENU_SWIPE ? itemId : null,
-      restaurantId: phase === SessionPhase.RESTAURANT_SWIPE ? itemId : null,
+      menuId: isMenuPhase ? itemId : null,
+      restaurantId: !isMenuPhase ? itemId : null,
       direction: direction as SwipeDirection,
       phase,
       swipeDurationMs: durationMs,
@@ -60,7 +64,7 @@ export async function handleSwipe(
   });
 
   // Update member progress
-  const progressField = phase === SessionPhase.MENU_SWIPE ? 'menuSwipeIndex' : 'restSwipeIndex';
+  const progressField = isMenuPhase ? 'menuSwipeIndex' : 'restSwipeIndex';
   await prisma.sessionMember.update({
     where: { id: member.id },
     data: {
@@ -85,7 +89,7 @@ export async function handleSwipe(
   );
 
   // Get deck to calculate progress
-  const deckKey = RedisKeys.roomDeck(sessionId, phase === SessionPhase.MENU_SWIPE ? 'menu_swipe' : 'restaurant_swipe');
+  const deckKey = RedisKeys.roomDeck(sessionId, isMenuPhase ? 'menu_swipe' : 'restaurant_swipe');
   console.log(`[SWIPE] Deck Redis key: ${deckKey}`);
   const deckData = await redis.get(deckKey);
   const deck = deckData ? JSON.parse(deckData) : [];
@@ -109,7 +113,7 @@ export async function handleSwipe(
   let allComplete = true;
 
   for (const m of members) {
-    const progress = phase === SessionPhase.MENU_SWIPE ? m.menuSwipeIndex : m.restSwipeIndex;
+    const progress = isMenuPhase ? m.menuSwipeIndex : m.restSwipeIndex;
     memberProgress[m.userId] = progress;
     console.log(`[SWIPE] Member ${m.userId}: menuSwipeIndex=${m.menuSwipeIndex}, restSwipeIndex=${m.restSwipeIndex}, progress=${progress}, totalCards=${totalCards}`);
     if (progress < totalCards) {
@@ -146,9 +150,12 @@ export async function checkForMatch(
     return false;
   }
 
-  const phase = session.phase;
+  const rawPhase = session.phase;
+  // MENU_RESULT is transitional - swipes during it are RESTAURANT_SWIPE
+  const phase = rawPhase === SessionPhase.MENU_RESULT ? SessionPhase.RESTAURANT_SWIPE : rawPhase;
+  const isMenuPhase = phase === SessionPhase.MENU_SWIPE;
   const memberCount = session.members.length;
-  console.log(`[MATCH] Session phase: ${phase}, status: ${session.status}, memberCount: ${memberCount}`);
+  console.log(`[MATCH] Session phase from DB: ${rawPhase}, effective phase: ${phase}, status: ${session.status}, memberCount: ${memberCount}`);
 
   // Get all swipes for this phase
   const swipes = await prisma.swipe.findMany({
@@ -163,7 +170,7 @@ export async function checkForMatch(
   });
 
   // Get deck items
-  const deckKey = RedisKeys.roomDeck(sessionId, phase === SessionPhase.MENU_SWIPE ? 'menu_swipe' : 'restaurant_swipe');
+  const deckKey = RedisKeys.roomDeck(sessionId, isMenuPhase ? 'menu_swipe' : 'restaurant_swipe');
   console.log(`[MATCH] Deck Redis key: ${deckKey}`);
   const deckData = await redis.get(deckKey);
   const deck = deckData ? JSON.parse(deckData) : [];
@@ -183,14 +190,22 @@ export async function checkForMatch(
   console.log(`[MATCH] Match result: type=${matchResult.type}, winnerId=${matchResult.winnerId}, confidence=${matchResult.confidence}, tiedItems=${JSON.stringify(matchResult.tiedItems)}, topItems=${JSON.stringify(matchResult.topItems)}`);
 
   if (!matchResult.winnerId && (!matchResult.tiedItems || matchResult.tiedItems.length === 0)) {
-    // No match found
-    console.log(`[MATCH] No match found - emitting match:none`);
-    io.to(`session:${sessionId}`).emit('match:none', {
-      sessionId,
-      phase,
-      topItems: matchResult.topItems || [],
-    });
-    return false;
+    // No positive match found
+    if (phase === SessionPhase.RESTAURANT_SWIPE && itemIds.length > 0) {
+      // For restaurant phase, pick the first item as fallback so we always get a result
+      console.log(`[MATCH] No positive match in restaurant phase - using first deck item as fallback: ${itemIds[0]}`);
+      matchResult.winnerId = itemIds[0];
+      matchResult.type = MatchType.WEAK;
+      matchResult.confidence = 0;
+    } else {
+      console.log(`[MATCH] No match found - emitting match:none`);
+      io.to(`session:${sessionId}`).emit('match:none', {
+        sessionId,
+        phase,
+        topItems: matchResult.topItems || [],
+      });
+      return false;
+    }
   }
 
   if (matchResult.type === MatchType.TIE && matchResult.tiedItems?.length) {
@@ -204,7 +219,7 @@ export async function checkForMatch(
   await prisma.match.create({
     data: {
       sessionId,
-      menuId: phase === SessionPhase.MENU_SWIPE ? matchResult.winnerId : null,
+      menuId: isMenuPhase ? matchResult.winnerId : null,
       matchType: matchResult.type,
       confidence: matchResult.confidence,
       voteCount: Object.values(matchResult.votes[matchResult.winnerId!] || {}).filter(
