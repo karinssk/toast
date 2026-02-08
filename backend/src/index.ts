@@ -59,6 +59,25 @@ await fastify.register(jwt, {
   },
 });
 
+// Global request/response logging to debug 400 errors
+fastify.addHook('onRequest', async (request) => {
+  if (request.url.includes('/sessions/') && request.method === 'POST') {
+    console.log(`[HTTP] ${request.method} ${request.url} Content-Type: ${request.headers['content-type']}, Content-Length: ${request.headers['content-length']}`);
+  }
+});
+
+fastify.addHook('onResponse', async (request, reply) => {
+  if (request.url.includes('/sessions/') && request.method === 'POST' && reply.statusCode >= 400) {
+    console.log(`[HTTP] ${request.method} ${request.url} -> ${reply.statusCode}`);
+  }
+});
+
+fastify.addHook('onError', async (request, reply, error) => {
+  if (request.url.includes('/sessions/')) {
+    console.log(`[HTTP-ERROR] ${request.method} ${request.url} -> Error: ${error.message}, statusCode: ${error.statusCode || 'unknown'}`);
+  }
+});
+
 // Health check
 fastify.get('/health', async () => {
   return {
